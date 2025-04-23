@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <title>ADMIN BẢO - QUẢN LÝ KEY</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+  <style>
+    body {
+      background: #000;
+      color: cyan;
+      font-family: monospace;
+      padding: 30px 20px;
+    }
+    h2 {
+      text-align: center;
+      font-size: 24px;
+      background: linear-gradient(90deg, red, orange, yellow, green, cyan, blue, violet);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      animation: rainbow 5s linear infinite;
+    }
+    @keyframes rainbow {
+      0% { filter: hue-rotate(0deg); }
+      100% { filter: hue-rotate(360deg); }
+    }
+    input, button {
+      padding: 8px;
+      margin: 6px;
+      border-radius: 6px;
+      border: none;
+    }
+    input {
+      background: #111;
+      color: cyan;
+    }
+    button {
+      background: cyan;
+      color: black;
+      font-weight: bold;
+      cursor: pointer;
+    }
+    .key-box {
+      background: #111;
+      padding: 10px;
+      margin-bottom: 10px;
+      border-radius: 10px;
+    }
+    .hidden {
+      display: none;
+    }
+    label {
+      display: block;
+      margin: 4px 0;
+    }
+  </style>
+</head>
+<body>
+
+  <div id="loginBox">
+    <h2>NHẬP MẬT KHẨU ADMIN</h2>
+    <input type="password" id="adminPass" placeholder="Mật khẩu quản lý" />
+    <button onclick="checkPassword()">Vào quản lý</button>
+    <p id="loginMsg"></p>
+  </div>
+
+  <div id="adminPanel" class="hidden">
+    <h2>ADMIN BẢO - QUẢN LÝ KEY</h2>
+    <div id="keyList"></div>
+
+    <h3 style="margin-top:30px;">Danh sách yêu cầu đăng ký</h3>
+    <div id="dkList"></div>
+  </div>
+
+  <script>
+    const firebaseConfig = {
+      apiKey: "AIzaSyDV-WnnRBzNGaJjCmJMY7NOWEPFioHOioU",
+      authDomain: "duybao-v11.firebaseapp.com",
+      databaseURL: "https://duybao-v11-default-rtdb.firebaseio.com",
+      projectId: "duybao-v11"
+    };
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+
+    const PASSWORD = "ANDI1306";
+
+    function checkPassword() {
+      const input = document.getElementById("adminPass").value.trim();
+      if (input === PASSWORD) {
+        document.getElementById("loginBox").style.display = "none";
+        document.getElementById("adminPanel").classList.remove("hidden");
+        loadKeys();
+        loadDangKy();
+      } else {
+        document.getElementById("loginMsg").innerText = "Sai mật khẩu!";
+      }
+    }
+
+    function loadKeys() {
+      db.ref("keys").once("value", snap => {
+        const list = document.getElementById("keyList");
+        list.innerHTML = "";
+        snap.forEach(child => {
+          const key = child.key;
+          const data = child.val();
+          const div = document.createElement("div");
+          div.className = "key-box";
+          div.innerHTML = `
+            <strong>Key:</strong> ${key}<br>
+            <label>Email: ${data.email || "?"}</label>
+            <label>HSD: <input type="date" value="${data.expire && data.expire !== 'forever' ? data.expire : ''}" id="exp_${key}" /></label>
+            <label>
+              Thiết bị: 
+              <input type="number" id="use_${key}" value="${data.maxUse || 1}" style="width:80px;">
+              <label><input type="checkbox" id="unl_${key}" ${data.maxUse == 9999 ? 'checked' : ''}/> Vô hạn</label>
+            </label>
+            <button onclick="updateKey('${key}')">Cập nhật</button>
+            <button onclick="copyKey('${key}')">Sao chép</button>
+            <button onclick="deleteKey('${key}')">Xoá</button>
+          `;
+          list.appendChild(div);
+        });
+      });
+    }
+
+    function updateKey(key) {
+      const exp = document.getElementById("exp_" + key).value;
+      const use = document.getElementById("use_" + key).value;
+      const unlimit = document.getElementById("unl_" + key).checked;
+      const data = {
+        expire: exp || "forever",
+        maxUse: unlimit ? 9999 : parseInt(use)
+      };
+      db.ref("keys/" + key).update(data, () => {
+        alert("Đã cập nhật key!");
+        loadKeys();
+      });
+    }
+
+    function deleteKey(key) {
+      if (confirm("Xoá key này?")) {
+        db.ref("keys/" + key).remove(() => {
+          alert("Đã xoá!");
+          loadKeys();
+        });
+      }
+    }
+
+    function copyKey(key) {
+      navigator.clipboard.writeText(key);
+      alert("Đã sao chép key: " + key);
+    }
+
+    function loadDangKy() {
+      db.ref("dangky").once("value", snap => {
+        const dkBox = document.getElementById("dkList");
+        dkBox.innerHTML = "";
+        snap.forEach(child => {
+          const id = child.key;
+          const data = child.val();
+          const div = document.createElement("div");
+          div.className = "key-box";
+          div.innerHTML = `
+            <strong>Gmail:</strong> ${data.email}<br>
+            <small>${data.time}</small><br>
+            <button onclick="capKey('${data.email}')">Cấp Key</button>
+            <button onclick="xoaYeuCau('${id}')">Xoá</button>
+          `;
+          dkBox.appendChild(div);
+        });
+      });
+    }
+
+    function capKey(email) {
+      const key = prompt("Nhập key muốn cấp cho " + email);
+      if (key) {
+        const expire = prompt("Nhập hạn sử dụng (yyyy-mm-dd) hoặc để trống:");
+        const maxUse = prompt("Nhập số thiết bị:", "1");
+        db.ref("keys/" + key).set({
+          email,
+          expire: expire || "forever",
+          maxUse: parseInt(maxUse || 1),
+          used: 0
+        }, () => {
+          alert("Đã cấp key cho: " + email);
+          loadKeys();
+        });
+      }
+    }
+
+    function xoaYeuCau(id) {
+      db.ref("dangky/" + id).remove(() => {
+        loadDangKy();
+      });
+    }
+  </script>
+</body>
+</html>
